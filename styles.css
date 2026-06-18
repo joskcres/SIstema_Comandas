@@ -420,7 +420,11 @@ body {
 
 }
 
-
+article p,
+article span,
+article h3 {
+    pointer-events: none;
+}
 
 .categoria.comida {
 
@@ -595,12 +599,11 @@ body {
     color: var(--success);
 
     background: #d2f5d1
-
 }
 
-.d-none{
+.d-none {
     display: none;
-    
+
 }
 
 

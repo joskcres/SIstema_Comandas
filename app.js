@@ -4,7 +4,6 @@ const estados = {
     'Pendiente': 'Pendiente de Pago'
 }
 
-
 class Producto {
     #id;
     #nombre;
@@ -90,7 +89,7 @@ class Mesa {
         return this.#mesasUnidas
     }
 
-    get comandas(){
+    get comandas() {
         return this.#comandas
     }
 
@@ -112,7 +111,7 @@ class Mesa {
     }
 
     eliminarComanda() {
-
+        this.#comandas.pop()
     }
 
     aperturarMesa() {
@@ -197,36 +196,95 @@ class Pedido {
     #nombre;
     #precio
 
-    constructor(cantidad, mesa, nombre, precio) {
+    constructor(cantidad, nombre, precio) {
         this.#cantidad = cantidad
         this.#nombre = nombre
-        this.precio = precio
+        this.#precio = precio
+    }
+
+    set cantidad(value) {
+        this.#cantidad = value
     }
 
     get subtotal() {
-        this.#subtotal = this.#cantidad * this.#precio
-        return this.#subtotal
+        return this.#subtotal = this.#cantidad * this.#precio
+    }
+
+    get cantidad() {
+        return this.#cantidad
+    }
+    get nombre() {
+        return this.#nombre
+    }
+
+    get precio() {
+        return this.#precio
     }
 }
 
 class Comanda {
     #pedidos;
     #mesa;
+    #impuestos = 0.05
+    #estado;
 
     constructor(mesa) {
         this.#pedidos = []
         this.#mesa = mesa
+        this.#estado = 'pendiente'
     }
 
+    get subtotal() {
+        return this.#pedidos.reduce((acumulador, actual) => acumulador + parseFloat(actual.subtotal), 0)
+    }
+
+
     agregarPedido(pedido) {
-        this.#pedidos = [...this.#pedidos, pedido]
+        let pedidoEncontrar = this.#pedidos.find(item => item.nombre == pedido.nombre)
+        if (pedidoEncontrar == undefined) {
+            this.#pedidos = [...this.#pedidos, pedido]
+        } else {
+            pedidoEncontrar.cantidad++
+        }
+
     }
 
     agregarMesa(mesa) {
-        this.#mesa = [...this.#pedidos, pedido]
+        this.#mesa = [...this.#mesa, mesa]
+    }
+
+    renderizar() {
+        let html = ''
+        let impuesto = this.subtotal * this.#impuestos
+        for (let pedido of this.#pedidos) {
+            html += `  <tr>
+
+                <td>${pedido.cantidad}</td>
+
+                <td>${pedido.nombre}</td>
+
+                <td>Q${pedido.precio}</td>
+
+                <td>Q${pedido.subtotal}</td>
+
+              </tr>`
+        }
+
+        tablaPedido.innerHTML = html
+        subtotal.textContent = `Q${this.subtotal.toFixed(2)}`
+        impuestos.textContent = `Q${impuesto.toFixed(2)}`
+        total.textContent = `Q${(this.subtotal + impuesto).toFixed(2)}`
+    }
+
+    cobrar() {
+        this.#estado = 'Preparando'
+        tablaPedido.innerHTML = ''
+        subtotal.textContent = 'Q0.00'
+        impuestos.textContent = 'Q0.00'
+        total.textContent = 'Q0.00'
+        alert("comanda enviada a la cocina")
     }
 }
-
 
 //objetos
 
@@ -235,7 +293,7 @@ const productos = [
     new Producto('Pizza Pepperoni', 60)
 ]
 
-const restaurante = new Restaurante('El gordo', 8)
+const restaurante = new Restaurante('El gordo', 12)
 
 ///DOM
 let contenedorMesas = document.querySelector('.mesas-grid')
@@ -249,25 +307,37 @@ let botonUnirMesa = document.querySelector('.unir-mesa')
 let mesaDetalle = document.querySelector('.mesa-detalle')
 let tablaWrap = document.querySelector('.container')
 let menuGrid = document.querySelector('.menu-grid')
+let tablaPedido = document.querySelector('#tabla-pedido')
+let subtotal = document.querySelector('#subtotal')
+let total = document.querySelector('#total')
+let impuestos = document.querySelector('#impuestos')
+let btnCobrar = document.querySelector('.cobrar')
+let btnFinalizar = document.querySelector('.finalizar')
+let btnAbrir = document.querySelector('.abrir-cuenta')
 contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
 contenedorNoMesas.textContent = `${restaurante.mesasNo} Mesas`
 
 let mesaActualSeleccionada;
 let mesaSeleccionada;
 let btnEvento = (event) => {
-    if (mesaActualSeleccionada != undefined) {
-        mesaActualSeleccionada.style = ''
-    }
+
     if (event.target.dataset.id != undefined) {
+        if (mesaActualSeleccionada != undefined) {
+            mesaActualSeleccionada.style = ''
+        }
         mesaSeleccionada = restaurante.mesas.find(item => item.id == event.target.dataset.id)
         event.target.style = 'background: green'
         if (mesaSeleccionada.estado == estados.Libre) {
             mesaSeleccionada.muestrame()
+
         } else {
             mesaSeleccionada.MostrarCuenta()
+            mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].renderizar()
         }
         mesaActualSeleccionada = event.target
     }
+
+    btnFinalizar.disabled = true
 
 }
 
@@ -284,7 +354,7 @@ botonUnirMesa.addEventListener('click', (event) => {
     contenedorMesas.removeEventListener('click', btnEvento)
     contenedorMesas.addEventListener('click', btnEventoRojo)
     if (click) {
-        let comandaObjeto = new Comanda(mesaSeleccionada.id)
+        let comandaObjeto = new Comanda([mesaSeleccionada.id])
         for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
             let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
             mesaAUnir.aperturarMesa();
@@ -299,13 +369,15 @@ botonUnirMesa.addEventListener('click', (event) => {
         contenedorMesas.removeEventListener('click', btnEventoRojo)
         contenedorMesas.addEventListener('click', btnEvento)
         mesaSeleccionada.MostrarCuenta()
+        comandaObjeto.renderizar();
     } else {
         botonUnirMesa.textContent = "Unir Mesas"
         botonUnirMesa.style = 'background-color: skyblue'
         //Mesa2
         mesaSeleccionada = restaurante.mesas.find(item => item.id == event.target.dataset.id)
+        click = true
     }
-    click = true
+
 })
 
 let productoHTML = ''
@@ -342,14 +414,53 @@ menuGrid.innerHTML = productoHTML
 
 menuGrid.addEventListener('click', (event) => {
     if (event.target.type == 'button') {
-        console.log()
         let producto = productos.find(item => item.id == event.target.dataset.id)
         const pedido = new Pedido(1, producto.nombre, producto.precio)
-        console.log(pedido)
-        //crear el pedido
-        //agrefar pedido a la comanda
-        mesaSeleccionada.comandas[0].agregarPedido(pedido)
-        console.log(mesaSeleccionada)
-        //dibujar
+        if (mesaSeleccionada && mesaSeleccionada.comandas.length > 0) {
+            mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].agregarPedido(pedido)
+            //dibujar
+            mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].renderizar()
+        }else{
+            alert('Abra una mesa antes de agregar un producto')
+        }
+
     }
+
+    btnFinalizar.disabled = true
+})
+
+btnCobrar.addEventListener('click', (event) => {
+    mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].cobrar()
+    const nuevaComanda = new Comanda([mesaSeleccionada.id])
+    for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
+        let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
+        mesaAUnir.ingresarComanda(nuevaComanda)
+    }
+    mesaSeleccionada.ingresarComanda(nuevaComanda)
+    btnFinalizar.disabled = false
+})
+
+
+btnFinalizar.addEventListener('click', (event) => {
+    mesaSeleccionada.cobrarMesa()
+
+    console.log('hola')
+    for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
+        let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
+        mesaAUnir.cobrarMesa()
+
+    }
+    mesaSeleccionada.eliminarComanda()
+    contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
+    panelComanda.classList.add('d-none')
+})
+
+btnAbrir.addEventListener('click',(event)=>{
+    mesaSeleccionada.aperturarMesa()
+    let comandaObjeto = new Comanda([mesaSeleccionada.id])
+    comandaObjeto.agregarMesa(mesaSeleccionada.id)
+    mesaSeleccionada.ingresarComanda(comandaObjeto)
+    contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
+    mesaSeleccionada.MostrarCuenta()
+
 })
