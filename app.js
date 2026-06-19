@@ -144,7 +144,12 @@ class Mesa {
     }
 
     unirme(ids) {
+
         this.#mesasUnidas = [...this.#mesasUnidas, ids]
+        let mesaAUnir = restaurante.mesas.find(mesa => mesa.id == ids)
+        if (!mesaAUnir.mesasUnidas.includes(this.id)) {
+            mesaAUnir.unirme(this.id)
+        }
     }
 }
 
@@ -239,6 +244,7 @@ class Comanda {
     }
 
 
+
     agregarPedido(pedido) {
         let pedidoEncontrar = this.#pedidos.find(item => item.nombre == pedido.nombre)
         if (pedidoEncontrar == undefined) {
@@ -284,6 +290,9 @@ class Comanda {
         total.textContent = 'Q0.00'
         alert("comanda enviada a la cocina")
     }
+    get pedidos() {
+        return this.#pedidos
+    }
 }
 
 //objetos
@@ -314,36 +323,59 @@ let impuestos = document.querySelector('#impuestos')
 let btnCobrar = document.querySelector('.cobrar')
 let btnFinalizar = document.querySelector('.finalizar')
 let btnAbrir = document.querySelector('.abrir-cuenta')
+let badgeProductos = document.querySelector('#badge-productos')
+let modosSeleccion = false
 contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
 contenedorNoMesas.textContent = `${restaurante.mesasNo} Mesas`
+badgeProductos.textContent = `${productos.length} Productos`
 
 let mesaActualSeleccionada;
 let mesaSeleccionada;
 let btnEvento = (event) => {
 
+    mesaSeleccionada = restaurante.mesas.find(item => item.id == event.target.dataset.id)
+    console.log(mesaSeleccionada)
     if (event.target.dataset.id != undefined) {
         if (mesaActualSeleccionada != undefined) {
             mesaActualSeleccionada.style = ''
         }
-        mesaSeleccionada = restaurante.mesas.find(item => item.id == event.target.dataset.id)
+
         event.target.style = 'background: green'
         if (mesaSeleccionada.estado == estados.Libre) {
             mesaSeleccionada.muestrame()
-
+            btnCobrar.disabled = true
+            btnCobrar.classList.remove('cobrar')
         } else {
+            if (mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].pedidos.length > 0) {
+                btnCobrar.disabled = false
+            } else {
+                btnCobrar.disabled = true
+            }
             mesaSeleccionada.MostrarCuenta()
             mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].renderizar()
         }
         mesaActualSeleccionada = event.target
+        if (panelComanda.classList.contains('d-none')) {
+            panelComanda.classList.remove('d-none')
+        }
+
     }
+
 
     btnFinalizar.disabled = true
 
 }
 
 let btnEventoRojo = (event) => {
-    event.target.style = 'background-color: red'
-    mesaSeleccionada.unirme(event.target.dataset.id)
+    let mesaSeleccionadaActual = restaurante.mesas.find(item => item.id == event.target.dataset.id)
+    if (mesaSeleccionadaActual.estado != estados.Ocupada && modosSeleccion) {
+        if (event.target.dataset.id != undefined) {
+            event.target.style = 'background-color: red'
+            mesaSeleccionada.unirme(event.target.dataset.id)
+        }
+    } else {
+        alert('Esto no jala che')
+    }
 }
 
 contenedorMesas.addEventListener('click', btnEvento)
@@ -354,6 +386,7 @@ botonUnirMesa.addEventListener('click', (event) => {
     contenedorMesas.removeEventListener('click', btnEvento)
     contenedorMesas.addEventListener('click', btnEventoRojo)
     if (click) {
+        modosSeleccion = false
         let comandaObjeto = new Comanda([mesaSeleccionada.id])
         for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
             let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
@@ -373,9 +406,9 @@ botonUnirMesa.addEventListener('click', (event) => {
     } else {
         botonUnirMesa.textContent = "Unir Mesas"
         botonUnirMesa.style = 'background-color: skyblue'
-        //Mesa2
         mesaSeleccionada = restaurante.mesas.find(item => item.id == event.target.dataset.id)
         click = true
+        modosSeleccion = true
     }
 
 })
@@ -408,19 +441,19 @@ for (let producto of productos) {
           </article>`
 }
 
-
 menuGrid.innerHTML = productoHTML
 
 
 menuGrid.addEventListener('click', (event) => {
     if (event.target.type == 'button') {
+        btnCobrar.disabled = false
         let producto = productos.find(item => item.id == event.target.dataset.id)
         const pedido = new Pedido(1, producto.nombre, producto.precio)
         if (mesaSeleccionada && mesaSeleccionada.comandas.length > 0) {
             mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].agregarPedido(pedido)
             //dibujar
             mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].renderizar()
-        }else{
+        } else {
             alert('Abra una mesa antes de agregar un producto')
         }
 
@@ -430,37 +463,45 @@ menuGrid.addEventListener('click', (event) => {
 })
 
 btnCobrar.addEventListener('click', (event) => {
-    mesaSeleccionada.comandas[mesaSeleccionada.comandas.length - 1].cobrar()
+    let cambiarMesa = mesaSeleccionada;
+    if (mesaSeleccionada.mesasUnidas.length == 1) {
+        cambiarMesa = mesaSeleccionada = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[0])
+    }
+    cambiarMesa.comandas[cambiarMesa.comandas.length - 1].cobrar()
     const nuevaComanda = new Comanda([mesaSeleccionada.id])
-    for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
-        let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
+    for (let i = 0; i < cambiarMesa.mesasUnidas.length-1; i++) {
+        let mesaAUnir = restaurante.mesas.find(item => item.id == cambiarMesa.mesasUnidas[i])
         mesaAUnir.ingresarComanda(nuevaComanda)
     }
-    mesaSeleccionada.ingresarComanda(nuevaComanda)
+    cambiarMesa.ingresarComanda(nuevaComanda)
     btnFinalizar.disabled = false
+    btnCobrar.disabled = true
 })
 
 
 btnFinalizar.addEventListener('click', (event) => {
-    mesaSeleccionada.cobrarMesa()
-
-    console.log('hola')
-    for (let i = 0; i < mesaSeleccionada.mesasUnidas.length; i++) {
+    let cambiarMesa = mesaSeleccionada;
+    if (mesaSeleccionada.mesasUnidas.length == 1) {
+        cambiarMesa = mesaSeleccionada = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[0])
+    }
+    cambiarMesa.cobrarMesa()
+    for (let i = 0; i < cambiarMesa.mesasUnidas.length; i++) {
         let mesaAUnir = restaurante.mesas.find(item => item.id == mesaSeleccionada.mesasUnidas[i])
         mesaAUnir.cobrarMesa()
 
     }
-    mesaSeleccionada.eliminarComanda()
+    cambiarMesa.eliminarComanda()
     contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
     panelComanda.classList.add('d-none')
 })
 
-btnAbrir.addEventListener('click',(event)=>{
+btnAbrir.addEventListener('click', (event) => {
     mesaSeleccionada.aperturarMesa()
     let comandaObjeto = new Comanda([mesaSeleccionada.id])
     comandaObjeto.agregarMesa(mesaSeleccionada.id)
     mesaSeleccionada.ingresarComanda(comandaObjeto)
     contenedorMesas.innerHTML = restaurante.normalizeMesasHTML()
     mesaSeleccionada.MostrarCuenta()
+    comandaObjeto.renderizar()
 
 })
